@@ -1,4 +1,4 @@
-import { ArrowRight, ChevronLeft, ChevronRight, Eraser, RotateCcw } from 'lucide-react';
+import { ArrowRight, Check, ChevronLeft, ChevronRight, Eraser, Pencil, RotateCcw } from 'lucide-react';
 import { useState } from 'react';
 import { createEmptyDayPlan, HOUR_LABELS } from '../data/defaults';
 import {
@@ -25,6 +25,7 @@ interface DailyPlanSheetProps {
   days: Record<string, DayPlan>;
   subjects: SubjectConfig[];
   examSettings: ExamSettings;
+  onUpdateExamSettings: (patch: Partial<ExamSettings>) => void;
   onUpdateHour: (date: string, hour: number, updater: (row: HourRow) => HourRow) => void;
   onClearDay: (date: string) => void;
   onUpdateReflection: (date: string, reflection: string) => void;
@@ -44,6 +45,7 @@ export function DailyPlanSheet({
   days,
   subjects,
   examSettings,
+  onUpdateExamSettings,
   onUpdateHour,
   onClearDay,
   onUpdateReflection,
@@ -54,6 +56,7 @@ export function DailyPlanSheet({
   const [activeBrushId, setActiveBrushId] = useState<string>(subjects[0]?.id ?? 'general');
   const [eraserMode, setEraserMode] = useState(false);
   const [confirmClear, setConfirmClear] = useState(false);
+  const [editingExamDays, setEditingExamDays] = useState(false);
 
   const today = toLocalDateString(new Date());
   const isToday = selectedDate === today;
@@ -674,13 +677,84 @@ export function DailyPlanSheet({
             </span>
             <span className="font-mono-tabular font-semibold">{selectedDate}</span>
           </div>
-          <div className="flex items-center justify-between py-1">
-            <span className="font-medium" style={{ color: 'var(--text-secondary)' }}>
-              DAYS I HAVE FOR A/L
-            </span>
-            <span className="font-mono-tabular font-bold" style={{ color: 'var(--accent)' }}>
-              {daysLeftForAL} days
-            </span>
+          <div className="space-y-2 py-1">
+            <div className="flex items-center justify-between gap-2">
+              <span className="font-medium" style={{ color: 'var(--text-secondary)' }}>
+                DAYS I HAVE FOR A/L
+              </span>
+              {!editingExamDays ? (
+                <button
+                  type="button"
+                  onClick={() => setEditingExamDays(true)}
+                  className="inline-flex items-center gap-1.5 font-mono-tabular font-bold hover:opacity-80"
+                  style={{ color: 'var(--accent)' }}
+                  title="Click to change remaining A/L days or target exam date"
+                >
+                  <span>{daysLeftForAL} days</span>
+                  <Pencil className="w-3.5 h-3.5" />
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setEditingExamDays(false)}
+                  className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-semibold theme-control"
+                  style={{ backgroundColor: 'var(--accent)', color: 'var(--accent-fg)' }}
+                >
+                  <Check className="w-3 h-3" />
+                  <span>Done</span>
+                </button>
+              )}
+            </div>
+
+            {editingExamDays && (
+              <div
+                className="p-2.5 border theme-control grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs"
+                style={{
+                  backgroundColor: 'var(--bg-subtle)',
+                  borderColor: 'var(--border-subtle)',
+                }}
+              >
+                <div>
+                  <label
+                    className="block text-[11px] mb-1"
+                    style={{ color: 'var(--text-secondary)' }}
+                  >
+                    Days Left (from {selectedDate})
+                  </label>
+                  <input
+                    type="number"
+                    min={0}
+                    max={2000}
+                    value={daysLeftForAL}
+                    onChange={(e) => {
+                      const val = Math.max(0, Math.min(2000, Number(e.target.value) || 0));
+                      onUpdateExamSettings({ examDate: addDays(selectedDate, val) });
+                    }}
+                    className="w-full px-2.5 py-1 text-xs font-mono-tabular border theme-control bg-transparent"
+                    style={{ borderColor: 'var(--border-subtle)' }}
+                  />
+                </div>
+                <div>
+                  <label
+                    className="block text-[11px] mb-1"
+                    style={{ color: 'var(--text-secondary)' }}
+                  >
+                    Target A/L Exam Date
+                  </label>
+                  <input
+                    type="date"
+                    value={examSettings.examDate}
+                    onChange={(e) => {
+                      if (e.target.value) {
+                        onUpdateExamSettings({ examDate: e.target.value });
+                      }
+                    }}
+                    className="w-full px-2.5 py-1 text-xs font-mono-tabular border theme-control bg-transparent"
+                    style={{ borderColor: 'var(--border-subtle)' }}
+                  />
+                </div>
+              </div>
+            )}
           </div>
         </div>
 

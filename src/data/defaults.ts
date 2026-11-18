@@ -343,6 +343,11 @@ export function createSeedState(): PlannerState {
     planStartDate,
     dailyTargetMinutes: 540, // 9 hours
     soundEnabled: true,
+    pearEnabled: false,
+    pearBaseUrl: 'http://127.0.0.1:26538',
+    pearToken: '',
+    pearAutoPauseOnFinish: true,
+    pearAutoResumeOnStart: false,
   };
 
   const timer: ActiveTimerState = {

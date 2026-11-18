@@ -94,6 +94,22 @@ export interface ExamSettings {
   planStartDate: string; // YYYY-MM-DD
   dailyTargetMinutes: number;
   soundEnabled: boolean;
+  pearEnabled?: boolean;
+  pearBaseUrl?: string;
+  pearToken?: string;
+  pearAutoPauseOnFinish?: boolean;
+  pearAutoResumeOnStart?: boolean;
+}
+
+export interface PearSongInfo {
+  title: string;
+  artist: string;
+  album?: string;
+  imageSrc?: string;
+  elapsedSeconds?: number;
+  songDuration?: number;
+  isPaused?: boolean;
+  url?: string;
 }
 
 export interface ActiveTimerState {

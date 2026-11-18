@@ -1,18 +1,25 @@
-import { CheckCircle2, Flag, Pause, Play, RotateCcw, Trash2 } from 'lucide-react';
+import { CheckCircle2, Flag, Pause, PictureInPicture2, Play, RotateCcw, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 import {
   ActiveTimerState,
+  ExamSettings,
   SessionCategory,
   StudySession,
   SubjectConfig,
 } from '../types/planner';
+import { pearControl } from '../utils/desktop';
 import { formatClockMs, formatMinutes } from '../utils/time';
+import { PearMusicCard } from './PearMusicCard';
 
 interface FocusTimerProps {
   timer: ActiveTimerState;
   elapsedMs: number;
   subjects: SubjectConfig[];
   sessions: StudySession[];
+  examSettings: ExamSettings;
+  onUpdateExamSettings: (patch: Partial<ExamSettings>) => void;
+  miniTimerOpen?: boolean;
+  onToggleMiniTimer?: () => void;
   onUpdateTimer: (updater: (t: ActiveTimerState) => ActiveTimerState) => void;
   onLogSession: (params: {
     durationSeconds: number;
@@ -38,6 +45,10 @@ export function FocusTimer({
   elapsedMs,
   subjects,
   sessions,
+  examSettings,
+  onUpdateExamSettings,
+  miniTimerOpen,
+  onToggleMiniTimer,
   onUpdateTimer,
   onLogSession,
   onDeleteSession,
@@ -57,6 +68,9 @@ export function FocusTimer({
       : 0;
 
   const handleStartPause = () => {
+    const pearUrl = examSettings.pearBaseUrl || 'http://127.0.0.1:26538';
+    const pearToken = examSettings.pearToken || undefined;
+
     if (timer.status === 'running') {
       const now = Date.now();
       const delta = timer.startedAt ? now - timer.startedAt : 0;
@@ -66,12 +80,18 @@ export function FocusTimer({
         startedAt: null,
         accumulatedMs: prev.accumulatedMs + delta,
       }));
+      if (examSettings.pearEnabled && examSettings.pearAutoPauseOnFinish) {
+        void pearControl(pearUrl, 'pause', pearToken).catch(() => {});
+      }
     } else {
       onUpdateTimer((prev) => ({
         ...prev,
         status: 'running',
         startedAt: Date.now(),
       }));
+      if (examSettings.pearEnabled && examSettings.pearAutoResumeOnStart) {
+        void pearControl(pearUrl, 'play', pearToken).catch(() => {});
+      }
     }
   };
 
@@ -182,12 +202,29 @@ export function FocusTimer({
               </button>
             </div>
 
-            <div className="text-xs font-medium" style={{ color: 'var(--text-secondary)' }}>
-              {timer.status === 'running'
-                ? 'Session running'
-                : timer.status === 'paused'
-                  ? 'Paused'
-                  : 'Ready to track'}
+            <div className="flex items-center gap-3">
+              <div className="text-xs font-medium" style={{ color: 'var(--text-secondary)' }}>
+                {timer.status === 'running'
+                  ? 'Session running'
+                  : timer.status === 'paused'
+                    ? 'Paused'
+                    : 'Ready to track'}
+              </div>
+              {onToggleMiniTimer && (
+                <button
+                  type="button"
+                  onClick={onToggleMiniTimer}
+                  className="px-3 py-1.5 text-xs font-medium border theme-control flex items-center gap-1.5 whitespace-nowrap shrink-0"
+                  style={{
+                    backgroundColor: miniTimerOpen ? 'var(--accent-soft)' : 'transparent',
+                    borderColor: miniTimerOpen ? 'var(--accent)' : 'var(--border-subtle)',
+                    color: miniTimerOpen ? 'var(--accent)' : 'var(--text-primary)',
+                  }}
+                >
+                  <PictureInPicture2 className="w-3.5 h-3.5" />
+                  <span>{miniTimerOpen ? 'Close Mini Timer' : 'Float Mini Timer'}</span>
+                </button>
+              )}
             </div>
           </div>
 
@@ -457,6 +494,8 @@ export function FocusTimer({
           </label>
         </div>
       </div>
+
+      <PearMusicCard examSettings={examSettings} onUpdateExamSettings={onUpdateExamSettings} />
 
       {/* Recent Study Sessions Log */}
       <div className="theme-card overflow-hidden">

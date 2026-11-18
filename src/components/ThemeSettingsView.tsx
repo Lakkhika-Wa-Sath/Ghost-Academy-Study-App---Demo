@@ -8,6 +8,7 @@ import {
   SubjectConfig,
   ThemeConfig,
 } from '../types/planner';
+import { addDays, diffDays, toLocalDateString } from '../utils/time';
 
 interface ThemeSettingsViewProps {
   themes: ThemeConfig[];
@@ -406,6 +407,25 @@ export function ThemeSettingsView({
                 type="date"
                 value={examSettings.examDate}
                 onChange={(e) => onUpdateExamSettings({ examDate: e.target.value })}
+                className="w-full px-3 py-2 text-sm font-mono-tabular border theme-control bg-transparent"
+                style={{ borderColor: 'var(--border-subtle)' }}
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium mb-1" style={{ color: 'var(--text-secondary)' }}>
+                Days Left for A/L (from Today)
+              </label>
+              <input
+                type="number"
+                min={0}
+                max={2000}
+                value={Math.max(0, diffDays(toLocalDateString(new Date()), examSettings.examDate))}
+                onChange={(e) => {
+                  const days = Math.max(0, Math.min(2000, Number(e.target.value) || 0));
+                  onUpdateExamSettings({
+                    examDate: addDays(toLocalDateString(new Date()), days),
+                  });
+                }}
                 className="w-full px-3 py-2 text-sm font-mono-tabular border theme-control bg-transparent"
                 style={{ borderColor: 'var(--border-subtle)' }}
               />

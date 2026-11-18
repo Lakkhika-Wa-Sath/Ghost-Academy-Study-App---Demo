@@ -1,18 +1,22 @@
 import {
   BarChart3,
   CalendarDays,
+  Check,
   Clock,
   Moon,
   Palette,
+  Pencil,
   TableProperties,
 } from 'lucide-react';
+import { useState } from 'react';
 import { ExamSettings, TabId } from '../types/planner';
-import { diffDays, formatMinutes, toLocalDateString } from '../utils/time';
+import { addDays, diffDays, formatMinutes, toLocalDateString } from '../utils/time';
 
 interface SidebarProps {
   activeTab: TabId;
   onSelectTab: (tab: TabId) => void;
   examSettings: ExamSettings;
+  onUpdateExamSettings: (patch: Partial<ExamSettings>) => void;
   todayUsingMinutes: number;
   upcomingDeadlinesCount: number;
   timerRunning: boolean;
@@ -32,11 +36,13 @@ export function Sidebar({
   activeTab,
   onSelectTab,
   examSettings,
+  onUpdateExamSettings,
   todayUsingMinutes,
   upcomingDeadlinesCount,
   timerRunning,
   timerDisplay,
 }: SidebarProps) {
+  const [editingDays, setEditingDays] = useState(false);
   const today = toLocalDateString(new Date());
   const daysLeft = Math.max(0, diffDays(today, examSettings.examDate));
   const targetPct = Math.min(
@@ -75,17 +81,65 @@ export function Sidebar({
               borderColor: 'var(--border-subtle)',
             }}
           >
-            <div className="text-xs font-medium" style={{ color: 'var(--text-secondary)' }}>
-              Days Left for A/L
+            <div className="flex items-center justify-between gap-2">
+              <div className="text-xs font-medium" style={{ color: 'var(--text-secondary)' }}>
+                Days Left for A/L
+              </div>
+              <button
+                type="button"
+                onClick={() => setEditingDays((v) => !v)}
+                className="p-1 theme-control hover:opacity-80"
+                style={{ color: editingDays ? 'var(--accent)' : 'var(--text-secondary)' }}
+                aria-label={editingDays ? 'Finish editing A/L days' : 'Edit A/L countdown'}
+                title={editingDays ? 'Done' : 'Change A/L days or target date'}
+              >
+                {editingDays ? <Check className="w-3.5 h-3.5" /> : <Pencil className="w-3 h-3" />}
+              </button>
             </div>
-            <div className="mt-1 flex items-baseline justify-between gap-2">
-              <span className="font-mono-tabular text-2xl font-bold tracking-tight">
-                {daysLeft}
-              </span>
-              <span className="font-mono-tabular text-xs" style={{ color: 'var(--text-secondary)' }}>
-                ~{Math.max(1, Math.round(daysLeft / 30))} mo
-              </span>
-            </div>
+
+            {editingDays ? (
+              <div className="mt-2 space-y-1.5">
+                <div className="flex items-center gap-1.5">
+                  <input
+                    type="number"
+                    min={0}
+                    max={2000}
+                    value={daysLeft}
+                    onChange={(e) => {
+                      const val = Math.max(0, Math.min(2000, Number(e.target.value) || 0));
+                      onUpdateExamSettings({ examDate: addDays(today, val) });
+                    }}
+                    className="w-20 px-2 py-1 text-xs font-mono-tabular border theme-control bg-transparent"
+                    style={{ borderColor: 'var(--border-subtle)' }}
+                    aria-label="Days remaining"
+                  />
+                  <span className="text-xs" style={{ color: 'var(--text-secondary)' }}>
+                    days
+                  </span>
+                </div>
+                <input
+                  type="date"
+                  value={examSettings.examDate}
+                  onChange={(e) => {
+                    if (e.target.value) {
+                      onUpdateExamSettings({ examDate: e.target.value });
+                    }
+                  }}
+                  className="w-full px-2 py-1 text-[11px] font-mono-tabular border theme-control bg-transparent"
+                  style={{ borderColor: 'var(--border-subtle)' }}
+                  aria-label="A/L Exam Date"
+                />
+              </div>
+            ) : (
+              <div className="mt-1 flex items-baseline justify-between gap-2">
+                <span className="font-mono-tabular text-2xl font-bold tracking-tight">
+                  {daysLeft}
+                </span>
+                <span className="font-mono-tabular text-xs" style={{ color: 'var(--text-secondary)' }}>
+                  ~{Math.max(1, Math.round(daysLeft / 30))} mo
+                </span>
+              </div>
+            )}
             <div
               className="mt-3 pt-2.5 border-t flex items-center justify-between text-xs"
               style={{ borderColor: 'var(--border-subtle)' }}

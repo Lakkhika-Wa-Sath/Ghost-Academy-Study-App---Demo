@@ -3,21 +3,46 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { AnalyticsView } from './components/AnalyticsView';
 import { CalendarDeadlines } from './components/CalendarDeadlines';
 import { DailyPlanSheet } from './components/DailyPlanSheet';
 import { FocusTimer } from './components/FocusTimer';
+import { MiniTimerWindow } from './components/MiniTimerWindow';
 import { Sidebar } from './components/Sidebar';
 import { ThemeSettingsView } from './components/ThemeSettingsView';
 import { TopBar } from './components/TopBar';
 import { WasteSleepOnlineView } from './components/WasteSleepOnlineView';
 import { usePlannerState } from './hooks/usePlannerState';
 import { TabId } from './types/planner';
+import {
+  closeCurrentWindow,
+  focusMainWindow,
+  isMiniWindowMode,
+  isTauriRuntime,
+  pearControl,
+  sendDesktopNotification,
+  toggleMiniTimerWindow,
+} from './utils/desktop';
 import { playChime } from './utils/sound';
 import { computeDayTotals, formatClockMs, toLocalDateString } from './utils/time';
 
 export default function App() {
+  const miniWindowMode = isMiniWindowMode();
+  const [timerFinishedBanner, setTimerFinishedBanner] = useState(false);
+  const soundEnabledRef = useRef(true);
+  const chimePlayedRef = useRef(false);
+
+  const handleExternalTimerCompleted = useCallback(() => {
+    if (!chimePlayedRef.current) {
+      chimePlayedRef.current = true;
+      if (soundEnabledRef.current) {
+        playChime();
+      }
+    }
+    setTimerFinishedBanner(true);
+  }, []);
+
   const {
     state,
     activeTheme,
@@ -39,15 +64,15 @@ export default function App() {
     importState,
     resetAllData,
     clearSampleStudyLogs,
-  } = usePlannerState();
+  } = usePlannerState(handleExternalTimerCompleted);
+
+  soundEnabledRef.current = state.examSettings.soundEnabled;
 
   const [activeTab, setActiveTab] = useState<TabId>('daily');
   const [selectedDate, setSelectedDate] = useState<string>(() => toLocalDateString(new Date()));
   const [openDeadlineForm, setOpenDeadlineForm] = useState(false);
   const [nowMs, setNowMs] = useState(() => Date.now());
-  const [timerFinishedBanner, setTimerFinishedBanner] = useState(false);
-
-  const chimePlayedRef = useRef(false);
+  const [browserMiniOpen, setBrowserMiniOpen] = useState(false);
 
   // Live timer clock tick
   useEffect(() => {
@@ -65,7 +90,7 @@ export default function App() {
 
   const targetMs = state.timer.targetMinutes * 60_000;
 
-  // Handle countdown completion
+  // Handle countdown completion (in Tauri, Rust monitor triggers OS notification & timer-completed event)
   useEffect(() => {
     if (
       state.timer.mode === 'timer' &&
@@ -79,12 +104,25 @@ export default function App() {
           playChime();
         }
         setTimerFinishedBanner(true);
-        updateTimer((prev) => ({
-          ...prev,
-          status: 'paused',
-          startedAt: null,
-          accumulatedMs: targetMs,
-        }));
+        if (!isTauriRuntime()) {
+          const subjName =
+            state.subjects.find((s) => s.id === state.timer.subjectId)?.name ?? 'Study';
+          void sendDesktopNotification(
+            'Focus Session Complete',
+            `${subjName} (${state.timer.targetMinutes} min) finished.`,
+          );
+          if (state.examSettings.pearEnabled && state.examSettings.pearAutoPauseOnFinish) {
+            const pearUrl = state.examSettings.pearBaseUrl || 'http://127.0.0.1:26538';
+            const pearToken = state.examSettings.pearToken || undefined;
+            void pearControl(pearUrl, 'pause', pearToken).catch(() => {});
+          }
+          updateTimer((prev) => ({
+            ...prev,
+            status: 'paused',
+            startedAt: null,
+            accumulatedMs: targetMs,
+          }));
+        }
       }
     } else if (elapsedMs < targetMs) {
       chimePlayedRef.current = false;
@@ -94,19 +132,21 @@ export default function App() {
     targetMs,
     state.timer.mode,
     state.timer.status,
+    state.timer.subjectId,
+    state.timer.targetMinutes,
+    state.subjects,
     state.examSettings.soundEnabled,
+    state.examSettings.pearEnabled,
+    state.examSettings.pearBaseUrl,
+    state.examSettings.pearToken,
+    state.examSettings.pearAutoPauseOnFinish,
     updateTimer,
   ]);
 
-  const today = toLocalDateString(new Date());
-  const todayTotals = computeDayTotals(state.days[today]);
-  const upcomingDeadlinesCount = state.deadlines.filter((d) => !d.completed).length;
+  const handleToggleTimerQuick = useCallback(() => {
+    const pearUrl = state.examSettings.pearBaseUrl || 'http://127.0.0.1:26538';
+    const pearToken = state.examSettings.pearToken || undefined;
 
-  const displayClockMs =
-    state.timer.mode === 'timer' ? Math.max(0, targetMs - elapsedMs) : elapsedMs;
-  const timerClockText = formatClockMs(displayClockMs);
-
-  const handleToggleTimerQuick = () => {
     if (state.timer.status === 'running') {
       const delta = state.timer.startedAt ? Date.now() - state.timer.startedAt : 0;
       updateTimer((prev) => ({
@@ -115,14 +155,77 @@ export default function App() {
         startedAt: null,
         accumulatedMs: prev.accumulatedMs + delta,
       }));
+      if (state.examSettings.pearEnabled && state.examSettings.pearAutoPauseOnFinish) {
+        void pearControl(pearUrl, 'pause', pearToken).catch(() => {});
+      }
     } else {
       updateTimer((prev) => ({
         ...prev,
         status: 'running',
         startedAt: Date.now(),
       }));
+      if (state.examSettings.pearEnabled && state.examSettings.pearAutoResumeOnStart) {
+        void pearControl(pearUrl, 'play', pearToken).catch(() => {});
+      }
     }
-  };
+  }, [
+    state.timer.status,
+    state.timer.startedAt,
+    state.examSettings.pearEnabled,
+    state.examSettings.pearBaseUrl,
+    state.examSettings.pearToken,
+    state.examSettings.pearAutoPauseOnFinish,
+    state.examSettings.pearAutoResumeOnStart,
+    updateTimer,
+  ]);
+
+  const handleResetTimerQuick = useCallback(() => {
+    updateTimer((prev) => ({
+      ...prev,
+      status: 'idle',
+      startedAt: null,
+      accumulatedMs: 0,
+      laps: [],
+    }));
+  }, [updateTimer]);
+
+  const handleToggleMiniTimer = useCallback(async () => {
+    if (isTauriRuntime()) {
+      await toggleMiniTimerWindow();
+    } else {
+      setBrowserMiniOpen((prev) => !prev);
+    }
+  }, []);
+
+  if (miniWindowMode) {
+    return (
+      <MiniTimerWindow
+        isNativeWindow={true}
+        timer={state.timer}
+        elapsedMs={elapsedMs}
+        subjects={state.subjects}
+        onTogglePlayPause={handleToggleTimerQuick}
+        onReset={handleResetTimerQuick}
+        onFinishAndLog={(params) => {
+          logSessionToSheet(params);
+        }}
+        onFocusMain={() => {
+          void focusMainWindow();
+        }}
+        onCloseMini={() => {
+          void closeCurrentWindow();
+        }}
+      />
+    );
+  }
+
+  const today = toLocalDateString(new Date());
+  const todayTotals = computeDayTotals(state.days[today]);
+  const upcomingDeadlinesCount = state.deadlines.filter((d) => !d.completed).length;
+
+  const displayClockMs =
+    state.timer.mode === 'timer' ? Math.max(0, targetMs - elapsedMs) : elapsedMs;
+  const timerClockText = formatClockMs(displayClockMs);
 
   const getPrimaryAction = () => {
     if (activeTab === 'daily') {
@@ -160,6 +263,7 @@ export default function App() {
         activeTab={activeTab}
         onSelectTab={setActiveTab}
         examSettings={state.examSettings}
+        onUpdateExamSettings={updateExamSettings}
         todayUsingMinutes={todayTotals.usingMinutes}
         upcomingDeadlinesCount={upcomingDeadlinesCount}
         timerRunning={state.timer.status === 'running'}
@@ -203,12 +307,7 @@ export default function App() {
                       label: state.timer.label || 'Focus Session',
                       applyToSheet: true,
                     });
-                    updateTimer((prev) => ({
-                      ...prev,
-                      status: 'idle',
-                      startedAt: null,
-                      accumulatedMs: 0,
-                    }));
+                    handleResetTimerQuick();
                     setTimerFinishedBanner(false);
                   }}
                   className="px-3 py-1.5 font-semibold theme-control"
@@ -235,6 +334,7 @@ export default function App() {
               days={state.days}
               subjects={state.subjects}
               examSettings={state.examSettings}
+              onUpdateExamSettings={updateExamSettings}
               onUpdateHour={updateDayHour}
               onClearDay={clearDayPlan}
               onUpdateReflection={updateDayReflection}
@@ -277,6 +377,12 @@ export default function App() {
               elapsedMs={elapsedMs}
               subjects={state.subjects}
               sessions={state.sessions}
+              examSettings={state.examSettings}
+              onUpdateExamSettings={updateExamSettings}
+              miniTimerOpen={!isTauriRuntime() ? browserMiniOpen : undefined}
+              onToggleMiniTimer={() => {
+                void handleToggleMiniTimer();
+              }}
               onUpdateTimer={updateTimer}
               onLogSession={(params) => {
                 setTimerFinishedBanner(false);
@@ -315,6 +421,23 @@ export default function App() {
           )}
         </main>
       </div>
+
+      {!isTauriRuntime() && browserMiniOpen && (
+        <MiniTimerWindow
+          isNativeWindow={false}
+          timer={state.timer}
+          elapsedMs={elapsedMs}
+          subjects={state.subjects}
+          onTogglePlayPause={handleToggleTimerQuick}
+          onReset={handleResetTimerQuick}
+          onFinishAndLog={(params) => {
+            setTimerFinishedBanner(false);
+            logSessionToSheet(params);
+          }}
+          onFocusMain={() => setActiveTab('timer')}
+          onCloseMini={() => setBrowserMiniOpen(false)}
+        />
+      )}
     </div>
   );
 }
