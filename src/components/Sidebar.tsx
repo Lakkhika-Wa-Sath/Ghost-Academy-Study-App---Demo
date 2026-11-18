@@ -3,6 +3,7 @@ import {
   CalendarDays,
   Check,
   Clock,
+  MonitorDown,
   Moon,
   Palette,
   Pencil,
@@ -21,6 +22,8 @@ interface SidebarProps {
   upcomingDeadlinesCount: number;
   timerRunning: boolean;
   timerDisplay: string;
+  showInstallApp?: boolean;
+  onOpenInstallModal?: () => void;
 }
 
 const NAV_ITEMS: { id: TabId; label: string; shortLabel: string; icon: typeof TableProperties }[] = [
@@ -41,6 +44,8 @@ export function Sidebar({
   upcomingDeadlinesCount,
   timerRunning,
   timerDisplay,
+  showInstallApp,
+  onOpenInstallModal,
 }: SidebarProps) {
   const [editingDays, setEditingDays] = useState(false);
   const today = toLocalDateString(new Date());
@@ -205,16 +210,36 @@ export function Sidebar({
           </nav>
         </div>
 
-        {/* Heritage Quote Footer */}
-        <div className="p-4 border-t" style={{ borderColor: 'var(--border-subtle)' }}>
-          <div className="text-xs font-semibold tracking-wide" style={{ color: 'var(--text-primary)' }}>
-            _GHOST ACADEMY _
-          </div>
-          <div className="mt-1 text-xs leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
-            කට්ට කන්නන් දිනන්න
-          </div>
-          <div className="mt-0.5 text-[11px]" style={{ color: 'var(--text-secondary)' }}>
-            Endure the work, win the exam.
+        {/* Install Windows App Trigger + Heritage Quote Footer */}
+        <div>
+          {showInstallApp && onOpenInstallModal && (
+            <div className="px-3 pb-3">
+              <button
+                type="button"
+                onClick={onOpenInstallModal}
+                className="w-full px-3 py-2 text-xs font-semibold border theme-control flex items-center justify-center gap-2 transition-opacity hover:opacity-90 whitespace-nowrap"
+                style={{
+                  backgroundColor: 'var(--accent)',
+                  borderColor: 'var(--accent)',
+                  color: 'var(--accent-fg)',
+                }}
+              >
+                <MonitorDown className="w-3.5 h-3.5 shrink-0" />
+                <span>Install Windows App</span>
+              </button>
+            </div>
+          )}
+
+          <div className="p-4 border-t" style={{ borderColor: 'var(--border-subtle)' }}>
+            <div className="text-xs font-semibold tracking-wide" style={{ color: 'var(--text-primary)' }}>
+              _GHOST ACADEMY _
+            </div>
+            <div className="mt-1 text-xs leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
+              කට්ට කන්නන් දිනන්න
+            </div>
+            <div className="mt-0.5 text-[11px]" style={{ color: 'var(--text-secondary)' }}>
+              Endure the work, win the exam.
+            </div>
           </div>
         </div>
       </aside>

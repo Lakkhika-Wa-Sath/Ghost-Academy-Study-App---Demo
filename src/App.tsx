@@ -3,6 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { WifiOff } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { AnalyticsView } from './components/AnalyticsView';
 import { CalendarDeadlines } from './components/CalendarDeadlines';
@@ -13,7 +14,9 @@ import { Sidebar } from './components/Sidebar';
 import { ThemeSettingsView } from './components/ThemeSettingsView';
 import { TopBar } from './components/TopBar';
 import { WasteSleepOnlineView } from './components/WasteSleepOnlineView';
+import { WindowsInstallModal } from './components/WindowsInstallModal';
 import { usePlannerState } from './hooks/usePlannerState';
+import { useOnlineStatus, usePWAInstall } from './hooks/usePWAInstall';
 import { TabId } from './types/planner';
 import {
   closeCurrentWindow,
@@ -73,6 +76,11 @@ export default function App() {
   const [openDeadlineForm, setOpenDeadlineForm] = useState(false);
   const [nowMs, setNowMs] = useState(() => Date.now());
   const [browserMiniOpen, setBrowserMiniOpen] = useState(false);
+  const [installModalOpen, setInstallModalOpen] = useState(false);
+
+  const { isInstallable, isInstalled, isNativeDesktop, isIOS, isInIframe, install } =
+    usePWAInstall();
+  const isOnline = useOnlineStatus();
 
   // Live timer clock tick
   useEffect(() => {
@@ -268,6 +276,8 @@ export default function App() {
         upcomingDeadlinesCount={upcomingDeadlinesCount}
         timerRunning={state.timer.status === 'running'}
         timerDisplay={timerClockText}
+        showInstallApp={!isInstalled && !isNativeDesktop}
+        onOpenInstallModal={() => setInstallModalOpen(true)}
       />
 
       <div className="flex-1 min-w-0 flex flex-col">
@@ -408,6 +418,8 @@ export default function App() {
               examSettings={state.examSettings}
               subjects={state.subjects}
               fullState={state}
+              isNativeDesktop={isNativeDesktop}
+              onOpenInstallModal={() => setInstallModalOpen(true)}
               onSelectTheme={setActiveTheme}
               onSaveCustomTheme={saveCustomTheme}
               onDeleteCustomTheme={deleteCustomTheme}
@@ -421,6 +433,20 @@ export default function App() {
           )}
         </main>
       </div>
+
+      {!isOnline && !isNativeDesktop && (
+        <div
+          className="fixed bottom-16 lg:bottom-4 left-4 z-40 px-3 py-1.5 border theme-control flex items-center gap-2 text-xs font-medium shadow-md"
+          style={{
+            backgroundColor: 'var(--bg-surface)',
+            borderColor: 'var(--color-online)',
+            color: 'var(--color-online)',
+          }}
+        >
+          <WifiOff className="w-3.5 h-3.5 shrink-0" />
+          <span>Offline Mode — Cached data is active</span>
+        </div>
+      )}
 
       {!isTauriRuntime() && browserMiniOpen && (
         <MiniTimerWindow
@@ -438,6 +464,17 @@ export default function App() {
           onCloseMini={() => setBrowserMiniOpen(false)}
         />
       )}
+
+      <WindowsInstallModal
+        isOpen={installModalOpen}
+        onClose={() => setInstallModalOpen(false)}
+        isInstallable={isInstallable}
+        isInstalled={isInstalled}
+        isIOS={isIOS}
+        isInIframe={isInIframe}
+        onInstallPWA={install}
+        fullState={state}
+      />
     </div>
   );
 }

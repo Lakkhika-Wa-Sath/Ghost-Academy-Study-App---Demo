@@ -1,4 +1,4 @@
-import { Download, Plus, Trash2, Upload } from 'lucide-react';
+import { Download, MonitorDown, Plus, Trash2, Upload } from 'lucide-react';
 import { useRef, useState } from 'react';
 import {
   ExamSettings,
@@ -16,6 +16,8 @@ interface ThemeSettingsViewProps {
   examSettings: ExamSettings;
   subjects: SubjectConfig[];
   fullState: PlannerState;
+  isNativeDesktop?: boolean;
+  onOpenInstallModal?: () => void;
   onSelectTheme: (id: string) => void;
   onSaveCustomTheme: (theme: ThemeConfig) => void;
   onDeleteCustomTheme: (id: string) => void;
@@ -33,6 +35,8 @@ export function ThemeSettingsView({
   examSettings,
   subjects,
   fullState,
+  isNativeDesktop,
+  onOpenInstallModal,
   onSelectTheme,
   onSaveCustomTheme,
   onDeleteCustomTheme,
@@ -530,6 +534,17 @@ export function ThemeSettingsView({
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          {!isNativeDesktop && onOpenInstallModal && (
+            <button
+              type="button"
+              onClick={onOpenInstallModal}
+              className="px-3 py-2 text-xs font-semibold theme-control flex items-center gap-1.5 whitespace-nowrap"
+              style={{ backgroundColor: 'var(--accent)', color: 'var(--accent-fg)' }}
+            >
+              <MonitorDown className="w-3.5 h-3.5" />
+              <span>Install Windows App</span>
+            </button>
+          )}
           <button
             type="button"
             onClick={handleExportBackup}
