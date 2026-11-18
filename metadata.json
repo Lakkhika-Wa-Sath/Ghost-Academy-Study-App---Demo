@@ -1,0 +1,8 @@
+{
+  "name": "Ghost Plan — A/L Time & Study Ledger",
+  "description": "Interactive 24-hour study planner, calendar, deadline tracker, focus stopwatch, and custom-themed productivity workspace for A/L exam preparation.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
